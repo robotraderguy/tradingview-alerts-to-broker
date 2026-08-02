@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="head">
+  <h1>Settings</h1>
+  <p class="count">from the environment</p>
+</div>
+
+<dl class="facts">
+  <div class="fact">
+    <dt>Mode</dt>
+    <dd class="mono">Paper only</dd>
+    <p class="src">The broker address is fixed to Tradier's sandbox and can't be changed by a setting</p>
+  </div>
+
+  <div class="fact">
+    <dt>Webhook token</dt>
+    <dd class="mono">{{ "Set" if token_set else "Not set" }}</dd>
+    <p class="src">
+      {% if token_set %}
+        Alerts must carry a matching token
+      {% else %}
+        Keep the webhook URL secret — it's the only thing protecting the endpoint
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="fact">
+    <dt>Broker credentials</dt>
+    <dd class="mono">{{ "Set" if broker_configured else "Not set" }}</dd>
+    <p class="src">TRADIER_TOKEN and TRADIER_ACCOUNT_ID</p>
+  </div>
+
+  <div class="fact">
+    <dt>Allowed actions</dt>
+    <dd class="mono">{{ allowed_actions|join(", ") }}</dd>
+    <p class="src">ALLOWED_ACTIONS</p>
+  </div>
+
+  <div class="fact">
+    <dt>Duplicate window</dt>
+    <dd class="mono">{% if duplicate_window > 0 %}{{ duplicate_window }}s{% else %}Off{% endif %}</dd>
+    <p class="src">
+      {% if duplicate_window > 0 %}
+        An identical repeat inside this window is ignored
+      {% else %}
+        Every alert is acted on, repeats included
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="fact">
+    <dt>Broker timeout</dt>
+    <dd class="mono">{{ broker_timeout }}s</dd>
+    <p class="src">BROKER_TIMEOUT_SECONDS</p>
+  </div>
+
+  <div class="fact">
+    <dt>Log file</dt>
+    <dd class="mono">{{ log_file }}</dd>
+    <p class="src">WEBHOOK_LOG_FILE — the record of every alert</p>
+  </div>
+</dl>
+
+<p class="note">
+  Nothing here can be edited from this page. These come from environment
+  variables; change them where the app is hosted, then restart it.
+  Secret values are never shown — only whether they're set.
+</p>
+
+{% endblock %}

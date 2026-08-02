@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="head">
+  <h1>Something broke</h1>
+  <p class="count">this page, not your account</p>
+</div>
+
+<p class="empty">
+  This page couldn't be drawn. Nothing was sent to the broker and no alert was
+  lost — the log file still has everything. Reload to try again.
+</p>
+
+{% if detail %}<pre class="detail">{{ detail }}</pre>{% endif %}
+
+{% endblock %}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ current|capitalize }} — TV → Tradier</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+
+<header class="masthead">
+  <!-- The wordmark IS the product: an arrow from one name to the other. -->
+  <a class="mark" href="/">
+    <span class="mark-from">TV</span><span class="mark-arrow">──▶</span><span class="mark-to">TRADIER</span>
+  </a>
+
+  <nav class="nav" aria-label="Pages">
+    {% for key, label, href in pages %}
+      <a class="nav-link{% if key == current %} is-current{% endif %}"
+         href="{{ href }}"
+         {% if key == current %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+
+<div class="strip">
+  <span class="badge">Paper account only</span>
+  <span class="broker broker--{{ broker_state }}">
+    <span class="dot" aria-hidden="true"></span>{{ broker_message }}
+  </span>
+</div>
+
+<main class="page">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="foot">
+  Read-only. Reload for the latest.
+</footer>
+
+</body>
+</html>

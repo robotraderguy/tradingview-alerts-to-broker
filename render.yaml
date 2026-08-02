@@ -1,0 +1,65 @@
+# Render service definition for the TradingView -> Tradier bridge.
+#
+# This file records how the service is configured, so the setup is readable in
+# the repo rather than living only in a dashboard.
+#
+# NOTE ON SECRETS: every sensitive value below is marked `sync: false`, which
+# means "this variable exists, but its value is NOT in this file". The values
+# are set separately, straight onto the service. A committed file must never
+# contain a token or an account id - this repo is private, but git history is
+# permanent and a private repo can be made public with one click.
+
+services:
+  - type: web
+    name: tradingview-tradier-bridge
+    runtime: python
+    region: oregon
+
+    # KNOWN LIMITATION, chosen deliberately.
+    #
+    # A free instance sleeps after 15 minutes without traffic and takes about a
+    # minute to wake. TradingView sends each alert ONCE and never retries, so
+    # any alert arriving while this is asleep is lost - the app never sees it
+    # and no order is placed. Nothing in the code can compensate for that.
+    #
+    # Fine for testing the pipeline end to end. Before relying on this to trade,
+    # change to `starter` ($7/month), which runs continuously.
+    plan: free
+
+    branch: main
+    buildCommand: pip install -r requirements.txt
+
+    # Gunicorn, not Flask's development server.
+    #
+    # ONE worker, deliberately. Duplicate suppression is held in memory, so a
+    # second worker would keep its own copy and a retried alert could slip
+    # through as a second real order. One worker is ample for a single user
+    # receiving occasional alerts.
+    #
+    # The 20s timeout is a backstop well above the app's own 4s broker
+    # timeout - the app is designed to give up first and log why.
+    startCommand: gunicorn webhook_app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 20
+
+    # Cheap, dependency-free, and it never touches the broker.
+    healthCheckPath: /status
+
+    envVars:
+      # --- secrets: names only, values set on the service ---
+      - key: TRADIER_TOKEN
+        sync: false
+      - key: TRADIER_ACCOUNT_ID
+        sync: false
+      - key: WEBHOOK_TOKEN
+        sync: false
+
+      # --- ordinary settings: safe to record, still must be set ---
+      - key: ALLOWED_ACTIONS
+        value: buy,sell
+      - key: DUPLICATE_WINDOW_SECONDS
+        value: "5"
+      - key: BROKER_TIMEOUT_SECONDS
+        value: "4"
+      - key: WEBHOOK_LOG_FILE
+        value: webhook.log
+
+      # PORT is supplied by Render itself and must not be set here.

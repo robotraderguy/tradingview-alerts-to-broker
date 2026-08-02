@@ -1,0 +1,411 @@
+/* =========================================================================
+   TV -> Tradier dashboard
+
+   Direction: this is a bridge, so the page is built around one idea - a
+   signal crossing from one side to the other. The wordmark is that crossing
+   at full size; the Passage column on Alerts is the same glyph per row,
+   aligned into a channel you can scan straight down.
+
+   Monospace is the PRIMARY voice, not just the number font. Trading screens
+   are monospace-native, and fixed advance widths are what let the passage
+   glyphs line up at all. The sans face is demoted to asides and prose, which
+   is the opposite of the usual arrangement and is the point.
+
+   Both faces are system stacks - no webfont, no CDN, nothing to fail on a
+   cold start in front of a live account.
+   ========================================================================= */
+
+:root {
+    /* Re-theming happens here and nowhere else. */
+    --bg:        #0B0B0F;   /* near-black, faint violet cast */
+    --panel:     #131319;
+    --line:      #24242E;
+    --line-soft: #1B1B23;
+
+    --text:      #E8E6ED;   /* 15.9:1 on --bg */
+    --muted:     #8A879A;   /*  5.6:1 on --bg - passes as body text */
+
+    /* Tradier's brand purple is #6633CC, which measures 2.7:1 here and is
+       unreadable. Brightened until it actually passes: 7.2:1 on --bg. */
+    --accent:     #A78BFA;
+    --accent-dim: #8B5CF6;  /* 4.6:1 - borders and fills only, never text */
+    --accent-wash: rgba(167, 139, 250, 0.10);
+
+    /* Trading conventions, strictly: green ONLY ever means a gain, red ONLY
+       ever means a loss or an error. Neither is decorative, and neither marks
+       "success" - a placed order is accent purple, not green. --gain is
+       defined for re-theming but unused today: no page shows profit or loss. */
+    --gain: #35D08A;
+    --loss: #FF5C5C;        /* 6.5:1 */
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono",
+            "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+            Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- masthead ---------------------------------------------------------- */
+
+.masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px 32px;
+    padding: 22px 28px 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.mark {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    white-space: nowrap;
+}
+
+.mark-arrow {
+    color: var(--accent);
+    letter-spacing: -0.05em;
+    font-weight: 400;
+}
+
+.mark-to { color: var(--muted); }
+
+.nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 22px;
+    margin-left: auto;
+}
+
+.nav-link {
+    position: relative;
+    padding: 4px 0;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.nav-link:hover { color: var(--text); }
+
+.nav-link.is-current {
+    color: var(--accent);
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* --- status strip ------------------------------------------------------ */
+
+.strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 20px;
+    padding: 10px 28px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--panel);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+}
+
+.badge {
+    padding: 3px 9px;
+    border: 1px solid var(--accent-dim);
+    border-radius: 2px;
+    background: var(--accent-wash);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 11px;
+}
+
+.broker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* A reachable broker is NOT green - green is reserved for gains. */
+.broker--ok { color: var(--accent); }
+.broker--down { color: var(--loss); }
+.broker--unconfigured { color: var(--muted); }
+
+/* --- page shell -------------------------------------------------------- */
+
+.page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 36px 28px 64px;
+}
+
+.head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 20px;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.head h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.count {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+}
+
+/* --- tables ------------------------------------------------------------ */
+
+.scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+thead th {
+    position: sticky;
+    top: 0;
+    padding: 11px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-align: left;
+}
+
+tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+tbody tr:last-child td { border-bottom: 0; }
+
+tbody tr:hover { background: rgba(167, 139, 250, 0.05); }
+
+.num { text-align: right; }
+.dim { color: var(--muted); }
+.time { color: var(--muted); font-size: 12px; }
+
+.ticker { font-weight: 700; letter-spacing: 0.06em; }
+
+/* Buy and sell are directions, not outcomes - so neither is green or red. */
+.side {
+    display: inline-block;
+    min-width: 46px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-align: center;
+}
+
+.side--buy {
+    border: 1px solid var(--accent-dim);
+    background: var(--accent-wash);
+    color: var(--accent);
+}
+
+.side--sell {
+    border: 1px solid var(--line);
+    color: var(--text);
+}
+
+.state {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
+.state--filled { color: var(--text); }
+.state--pending, .state--open { color: var(--muted); }
+.state--rejected, .state--canceled, .state--expired, .state--error { color: var(--loss); }
+
+/* --- the signature: passage -------------------------------------------- */
+/* One row, one answer: did this alert make it across? The glyph column is a
+   fixed width so every arrow stacks into a single vertical channel. */
+
+.passage-head { padding-left: 22px; }
+
+.passage {
+    padding-left: 22px;
+    color: var(--muted);
+}
+
+.glyph {
+    display: inline-block;
+    width: 3.5ch;
+    margin-right: 14px;
+    letter-spacing: -0.05em;
+}
+
+.passage-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.passage--placed .glyph { color: var(--accent); }
+.passage--placed .passage-text { color: var(--text); }
+
+.passage--rejected .glyph,
+.passage--failed .glyph { color: var(--loss); }
+.passage--rejected .passage-text,
+.passage--failed .passage-text { color: var(--loss); }
+
+.passage--ignored .glyph { color: var(--muted); }
+.passage--pending .glyph { color: var(--line); }
+
+/* --- fact lists (Accounts, Settings) ----------------------------------- */
+
+.facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--line);
+    overflow: hidden;
+}
+
+.fact {
+    padding: 18px 20px 16px;
+    background: var(--panel);
+}
+
+.fact dt {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.fact dd {
+    margin: 7px 0 0;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+}
+
+/* Every figure names the field it came from. On this account `equity` reads 0
+   while `total_equity` holds the real number, so a caption naming the source
+   is the difference between a figure and a guess. */
+.src {
+    margin: 6px 0 0;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+/* --- prose, empty states, errors --------------------------------------- */
+
+.empty {
+    margin: 0;
+    padding: 34px 24px;
+    border: 1px dashed var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 14px;
+    text-align: center;
+}
+
+.note {
+    margin: 22px 0 0;
+    max-width: 62ch;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+}
+
+.detail {
+    margin: 18px 0 0;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.foot {
+    padding: 0 28px 40px;
+    max-width: 1180px;
+    margin: 0 auto;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 12px;
+}
+
+/* --- quality floor ------------------------------------------------------ */
+
+a:focus-visible,
+.nav-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+@media (max-width: 640px) {
+    .masthead { padding: 18px 16px 14px; }
+    .strip { padding: 10px 16px; }
+    .page { padding: 26px 16px 48px; }
+    .foot { padding: 0 16px 32px; }
+    .nav { margin-left: 0; }
+    .head h1 { font-size: 20px; }
+    .fact dd { font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}

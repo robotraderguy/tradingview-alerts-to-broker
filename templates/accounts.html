@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="head">
+  <h1>Accounts</h1>
+  <p class="count">{{ profile.account_number or balances.account_number or "—" }}</p>
+</div>
+
+{% if not balances and not profile %}
+  <p class="empty">No account data. {{ broker_message }}.</p>
+{% else %}
+
+<dl class="facts">
+  <div class="fact">
+    <dt>Account</dt>
+    <dd class="mono">{{ profile.account_number or balances.account_number or "—" }}</dd>
+    <p class="src">{{ profile.type or balances.account_type or "type unknown" }}</p>
+  </div>
+
+  <div class="fact">
+    <dt>Status</dt>
+    <dd class="mono">{{ profile.status or "—" }}</dd>
+    <p class="src">{% if profile.status %}from user profile{% else %}broker did not answer{% endif %}</p>
+  </div>
+
+  <div class="fact">
+    <dt>Equity</dt>
+    <dd class="mono">{% if "total_equity" in money %}{{ "{:,.2f}".format(money["total_equity"]) }}{% else %}—{% endif %}</dd>
+    <!-- Naming the source field is deliberate: this payload also carries a
+         plain `equity` that reads 0. Showing which field a number came from
+         is the difference between a figure and a guess. -->
+    <p class="src">total_equity</p>
+  </div>
+
+  <div class="fact">
+    <dt>Cash</dt>
+    <dd class="mono">{% if "total_cash" in money %}{{ "{:,.2f}".format(money["total_cash"]) }}{% else %}—{% endif %}</dd>
+    <p class="src">total_cash</p>
+  </div>
+
+  <div class="fact">
+    <dt>Buying power</dt>
+    <dd class="mono">{% if buying_power_field %}{{ "{:,.2f}".format(money[buying_power_field]) }}{% else %}—{% endif %}</dd>
+    <p class="src">{{ buying_power_field or "not reported" }}</p>
+  </div>
+
+  <div class="fact">
+    <dt>Currency</dt>
+    <dd class="mono">USD</dd>
+    <p class="src">Tradier accounts are USD</p>
+  </div>
+</dl>
+
+{% endif %}
+
+{% endblock %}

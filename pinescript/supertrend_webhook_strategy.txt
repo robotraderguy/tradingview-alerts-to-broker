@@ -1,0 +1,218 @@
+//@version=6
+// =============================================================================
+//  RoboTraderGuy — Supertrend Webhook Strategy  (Pine Script v6)
+// =============================================================================
+//  WHAT THIS DOES
+//  --------------
+//  This is a complete, self-contained TradingView STRATEGY. It watches one
+//  stock, decides when to buy and when to sell using the Supertrend indicator,
+//  marks every decision on the chart, and fires a webhook alert that other
+//  software can read and act on.
+//
+//  It is a STRATEGY (not an indicator) on purpose: only a strategy knows what
+//  it is currently holding, and the alert has to report the real share count.
+//
+//  THE ALERT MESSAGE
+//  -----------------
+//  Every alert goes out as one line of JSON with exactly four labelled values
+//  and nothing else:
+//
+//      {"symbol":"AAPL","action":"buy","quantity":10,"token":""}
+//
+//      symbol    - the stock this chart is on
+//      action    - "buy" or "sell"
+//      quantity  - whole shares, taken from what the strategy actually holds
+//      token     - your password; starts EMPTY, you type it in the settings
+//
+//  The message is built inside this script and fired with alert(), so the text
+//  you type into TradingView's alert box is IGNORED. That is deliberate: there
+//  is no way to set the alert up "almost right" and end up sending a blank
+//  quantity to your broker. See the setup instructions that shipped with this
+//  file for the exact options to pick in the alert dialog.
+//
+//  SCOPE
+//  -----
+//  Plain shares of a normal US stock, whole numbers, paper account. No options,
+//  no crypto, no futures, no fractional sizing.
+// =============================================================================
+
+strategy(
+     title             = "RoboTraderGuy Supertrend Webhook Strategy (Pine v6)",
+     shorttitle        = "RTG Supertrend v6",
+     overlay           = true,
+     initial_capital   = 100000,
+     currency          = currency.USD,
+     default_qty_type  = strategy.fixed,
+     default_qty_value = 10,
+     pyramiding        = 0,
+     // Drawing caps. The default is about 50, and past that TradingView
+     // silently deletes the OLDEST labels - so old buys/sells vanish off the
+     // left of the chart and it looks like the script missed them.
+     max_labels_count  = 500,
+     max_lines_count   = 500,
+     max_boxes_count   = 500,
+     // Needed for the "Immediate (intrabar)" timing mode below. In the default
+     // "Confirmed" mode the script still only acts once the bar has closed.
+     calc_on_every_tick = true)
+
+
+// -----------------------------------------------------------------------------
+//  SETTINGS - all of these are editable from the chart (gear icon -> Inputs)
+// -----------------------------------------------------------------------------
+
+// --- How twitchy is it? ------------------------------------------------------
+//  Supertrend measures how far price has to move against the current trend
+//  before it admits the trend has changed. That distance is "ATR factor"
+//  multiples of recent volatility.
+//
+//    LOWER  factor / shorter ATR = twitchier = MORE signals, MORE noise
+//    HIGHER factor / longer  ATR = calmer    = FEWER signals, slower to turn
+//
+//  The defaults below are the FAST settings, tuned so that a 1-minute chart
+//  produces a signal every few minutes and you can test the whole pipeline
+//  without sitting around for hours.
+//
+//    1-minute chart  (testing) .... Sensitivity 1.0, ATR length 5   <- defaults
+//    30-minute chart (live use) ... Sensitivity 3.0, ATR length 10
+//
+var string GRP_SENS = "1. Sensitivity - how twitchy it is"
+float sensitivity = input.float(1.0, "Sensitivity (ATR factor)", minval = 0.5, maxval = 20.0, step = 0.1, group = GRP_SENS,
+     tooltip = "Lower = more signals. Use 1.0 on a 1-minute chart for testing, 3.0 on a 30-minute chart for real use.")
+int   atrLength   = input.int(5, "ATR length (bars)", minval = 1, maxval = 200, group = GRP_SENS,
+     tooltip = "How many bars of volatility to average. Use 5 on a 1-minute chart, 10 on a 30-minute chart.")
+
+// --- What to trade -----------------------------------------------------------
+var string GRP_TRADE = "2. Trading"
+int  qtyShares = input.int(10, "Shares per trade", minval = 1, step = 1, group = GRP_TRADE,
+     tooltip = "Whole shares. This is the size sent on an entry; exits always send back what is actually held.")
+bool reverseIt = input.bool(false, "Reverse direction (bet the other way)", group = GRP_TRADE,
+     tooltip = "OFF (default): buy to enter, sell to exit.  ON: sell short to enter, buy to cover the exit.")
+
+// --- When to act on a signal -------------------------------------------------
+//  Both of these are defensible and traders genuinely disagree, so the script
+//  implements BOTH and lets you choose:
+//
+//    "Confirmed (bar close)" - DEFAULT. A trend flip only counts once the bar
+//        has finished. Marks never move once drawn, and what you see on
+//        history is exactly what you would have got live. Costs you up to one
+//        bar of delay.
+//
+//    "Immediate (intrabar)"  - Acts the moment price crosses, without waiting
+//        for the close. Faster fills, but a flip can appear mid-bar and then
+//        UN-happen if price comes back before the close. Marks and alerts can
+//        therefore repaint. Use it knowingly.
+//
+var string GRP_TIMING = "3. Signal timing"
+string timingMode = input.string("Confirmed (bar close)", "When to act on a flip",
+     options = ["Confirmed (bar close)", "Immediate (intrabar)"], group = GRP_TIMING,
+     tooltip = "Confirmed waits for the bar to close and never repaints. Immediate acts intrabar and can repaint.")
+
+// --- Webhook ------------------------------------------------------------------
+var string GRP_HOOK = "4. Webhook alert"
+string webhookToken = input.string("", "Webhook token (password)", group = GRP_HOOK,
+     tooltip = "Starts empty on purpose. Paste the same secret your webhook receiver expects. It is sent in the 'token' field of every alert.")
+bool showLabels = input.bool(true, "Show BUY/SELL labels on the chart", group = GRP_HOOK)
+
+
+// -----------------------------------------------------------------------------
+//  THE INDICATOR - Supertrend
+// -----------------------------------------------------------------------------
+//  Supertrend (Olivier Seban) is a trend-following line that sits under price
+//  in an uptrend and above price in a downtrend, at a distance set by recent
+//  volatility (ATR). When price closes through it, the line flips sides and
+//  that is the signal.
+//
+//  ta.supertrend returns two things:
+//     stLine - where to draw the line
+//     stDir  - which side we are on: NEGATIVE = uptrend, POSITIVE = downtrend
+//
+[stLine, stDir] = ta.supertrend(sensitivity, atrLength)
+
+// Draw the line, green while the trend is up and red while it is down.
+// plot.style_linebr breaks the line at the flip instead of drawing an ugly
+// vertical jump between the two sides.
+plot(stDir < 0 ? stLine : na, title = "Supertrend (uptrend)",   color = color.new(color.teal, 0), style = plot.style_linebr, linewidth = 2)
+plot(stDir > 0 ? stLine : na, title = "Supertrend (downtrend)", color = color.new(color.red,  0), style = plot.style_linebr, linewidth = 2)
+
+// A trend FLIP is the moment stDir changes sign.
+float dirChange = nz(ta.change(stDir))
+bool flipToUp   = dirChange < 0      // downtrend -> uptrend
+bool flipToDown = dirChange > 0      // uptrend   -> downtrend
+
+
+// -----------------------------------------------------------------------------
+//  DECIDING WHAT TO DO
+// -----------------------------------------------------------------------------
+bool actNow = timingMode == "Immediate (intrabar)" or barstate.isconfirmed
+
+// Which flip opens a trade and which one closes it depends on the reverse
+// switch. Normal: an uptrend flip gets you in. Reversed: you bet the other way,
+// so a DOWNTREND flip gets you in (short).
+bool entrySignal = reverseIt ? flipToDown : flipToUp
+bool exitSignal  = reverseIt ? flipToUp   : flipToDown
+
+// The words that go out in the alert.
+string entryAction = reverseIt ? "sell" : "buy"   // sell = open a short
+string exitAction  = reverseIt ? "buy"  : "sell"  // buy  = cover a short
+
+// Our own record of what is held, in whole shares. Exits report THIS number,
+// not the size input, so the alert always describes the real position - even
+// if you change the share-size setting while a trade is open.
+var int heldShares = 0
+
+
+// -----------------------------------------------------------------------------
+//  THE ALERT MESSAGE
+// -----------------------------------------------------------------------------
+//  Exactly four keys, same order, every time. Built here in the script so the
+//  values are always real - never a TradingView placeholder that quietly
+//  resolves to nothing.
+buildAlertJson(string action, int qty) =>
+    '{"symbol":"' + syminfo.ticker + '","action":"' + action + '","quantity":' + str.tostring(qty) + ',"token":"' + webhookToken + '"}'
+
+// Buys are labelled BELOW the bar, sells ABOVE it.
+drawSignalLabel(string action, int qty) =>
+    if showLabels
+        bool isBuy = action == "buy"
+        label.new(
+             x       = bar_index,
+             y       = na,
+             text    = (isBuy ? "BUY " : "SELL ") + str.tostring(qty),
+             yloc    = isBuy ? yloc.belowbar : yloc.abovebar,
+             style   = isBuy ? label.style_label_up : label.style_label_down,
+             color   = isBuy ? color.new(color.teal, 15) : color.new(color.red, 15),
+             textcolor = color.white,
+             size    = size.small)
+
+
+// -----------------------------------------------------------------------------
+//  PLACING THE TRADES
+// -----------------------------------------------------------------------------
+
+// --- ENTER (only when flat) ---
+if actNow and entrySignal and heldShares == 0
+    heldShares := qtyShares
+    if reverseIt
+        strategy.entry("Short", strategy.short, qty = qtyShares)
+    else
+        strategy.entry("Long", strategy.long, qty = qtyShares)
+
+    string msg = buildAlertJson(entryAction, qtyShares)
+    if timingMode == "Immediate (intrabar)"
+        alert(msg, alert.freq_once_per_bar)
+    else
+        alert(msg, alert.freq_once_per_bar_close)
+    drawSignalLabel(entryAction, qtyShares)
+
+// --- EXIT (only when something is held) ---
+if actNow and exitSignal and heldShares > 0
+    int closingQty = heldShares      // report what we ACTUALLY hold
+    heldShares := 0
+    strategy.close_all(comment = "exit")
+
+    string msg = buildAlertJson(exitAction, closingQty)
+    if timingMode == "Immediate (intrabar)"
+        alert(msg, alert.freq_once_per_bar)
+    else
+        alert(msg, alert.freq_once_per_bar_close)
+    drawSignalLabel(exitAction, closingQty)

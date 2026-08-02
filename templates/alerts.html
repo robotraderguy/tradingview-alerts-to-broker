@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="head">
+  <h1>Alerts</h1>
+  <p class="count">{% if rows %}{{ rows|length }} received{% else %}nothing yet{% endif %}</p>
+</div>
+
+{% if note %}
+  <p class="empty">{{ note }}</p>
+{% else %}
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Ticker</th>
+      <th>Side</th>
+      <th class="num">Qty</th>
+      <th class="passage-head">Passage</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td class="time">{{ row.time[:19]|replace("T", " ") }}</td>
+      <td class="ticker">{{ row.symbol }}</td>
+      <td><span class="side side--{{ row.action }}">{{ row.action|upper }}</span></td>
+      <td class="num">{{ row.quantity }}</td>
+      <!-- The signature: whether this alert made it across the bridge, drawn
+           as a glyph that lines up into a channel down the page. -->
+      <td class="passage passage--{{ row.state }}">
+        <span class="glyph" aria-hidden="true">
+          {%- if row.state == "placed" -%}──▶
+          {%- elif row.state in ("rejected", "failed") -%}──✕
+          {%- elif row.state == "ignored" -%}──◦
+          {%- else -%}──·
+          {%- endif -%}
+        </span>
+        <span class="passage-text">{{ row.detail or "—" }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

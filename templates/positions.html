@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="head">
+  <h1>Positions</h1>
+  <p class="count">{% if positions %}{{ positions|length }} held{% else %}nothing held{% endif %}</p>
+</div>
+
+{% if not positions %}
+  <p class="empty">
+    {% if broker_state == "ok" %}
+      Nothing held on this account.
+    {% else %}
+      Positions can't be listed. {{ broker_message }}.
+    {% endif %}
+  </p>
+{% else %}
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th class="num">Shares</th>
+      <th class="num">Cost</th>
+      <th>Entered</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for position in positions %}
+    <tr>
+      <td class="ticker">{{ position.symbol or "—" }}</td>
+      <!-- A negative share count is a short. Not a loss, so not red. -->
+      <td class="num">{{ position.quantity|int if position.quantity is not none else "—" }}</td>
+      <td class="num">
+        {%- if position.cost_basis is not none -%}
+          {{ "{:,.2f}".format(position.cost_basis) }}
+        {%- else -%}—{%- endif -%}
+      </td>
+      <td class="time">{{ (position.date_acquired or "")[:19]|replace("T", " ") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}
