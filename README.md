@@ -14,8 +14,7 @@ orders — built entirely with AI.**
 ![Built With](https://img.shields.io/badge/Built%20With-Claude%20Code-cc785c)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-<!-- PLACEHOLDER: swap the channel URL below for the direct video URL once the video is published. -->
-🎬 **Watch this get built:** **[▶️ YouTube — video coming soon](https://www.youtube.com/@RoboTraderGuy)** — every line
+🎬 **Watch this get built:** **[▶️ TradingView Alerts → Broker Orders (AI Wrote It All)](https://www.youtube.com/watch?v=2Ap53fqK_Eg)** — every line
 written by AI, directed on camera.
 
 </div>
